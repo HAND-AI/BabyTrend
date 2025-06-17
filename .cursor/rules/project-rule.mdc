@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+1. When design, always class first.
+2. When not specified, always try to use abstrct interface without going to details
