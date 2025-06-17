@@ -9,6 +9,7 @@ interface FileUploaderProps {
   maxSize?: number; // in MB
   title?: string;
   description?: string;
+  compact?: boolean;
 }
 
 const FileUploader: React.FC<FileUploaderProps> = ({
@@ -19,7 +20,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   acceptedTypes = ['.xlsx', '.xls'],
   maxSize = 16,
   title = 'Upload File',
-  description = 'Select an Excel file to upload'
+  description = 'Select an Excel file to upload',
+  compact = false
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -109,19 +111,21 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   };
 
   return (
-    <div className="w-full">
-      <div className="mb-4">
-        <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-500">{description}</p>
-      </div>
+    <div className={`w-full ${compact ? '' : 'max-w-md'}`}>
+      {!compact && (
+        <div className="mb-2">
+          <h3 className="text-sm font-medium text-gray-900">{title}</h3>
+          <p className="text-xs text-gray-500">{description}</p>
+        </div>
+      )}
 
       {/* File Drop Zone */}
       <div
-        className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${
+        className={`relative border-2 border-dashed rounded-lg transition-colors ${
           dragActive
             ? 'border-primary-500 bg-primary-50'
             : 'border-gray-300 hover:border-gray-400'
-        }`}
+        } ${compact ? 'p-3' : 'p-4'}`}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -129,40 +133,42 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         {selectedFile ? (
           /* Selected File Display */
           <div className="text-center">
-            <div className="mb-4">
-              <div className="mx-auto w-12 h-12 text-green-500 mb-2">
+            <div className={compact ? 'flex items-center justify-center space-x-2' : 'mb-3'}>
+              <div className={`text-green-500 ${compact ? 'text-xl' : 'mx-auto w-8 h-8 mb-1'}`}>
                 📄
               </div>
-              <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-              <p className="text-xs text-gray-500">
-                {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
-              </p>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
+                <p className="text-xs text-gray-500">
+                  {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                </p>
+              </div>
             </div>
             
             {loading && (
-              <div className="mb-4">
-                <div className="bg-gray-200 rounded-full h-2 mb-2">
+              <div className={compact ? 'mt-2' : 'mb-3'}>
+                <div className="bg-gray-200 rounded-full h-1.5 mb-1">
                   <div
-                    className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-primary-600 h-1.5 rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
-                <p className="text-sm text-gray-600">Uploading... {progress}%</p>
+                <p className="text-xs text-gray-600">Uploading... {progress}%</p>
               </div>
             )}
 
-            <div className="flex justify-center space-x-3">
+            <div className={`flex justify-center space-x-2 ${compact ? 'mt-2' : ''}`}>
               <button
                 onClick={handleUpload}
                 disabled={loading}
-                className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 bg-primary-600 text-white text-xs font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Uploading...' : 'Upload File'}
+                {loading ? 'Uploading...' : 'Upload'}
               </button>
               <button
                 onClick={handleRemoveFile}
                 disabled={loading}
-                className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
               >
                 Remove
               </button>
@@ -171,22 +177,24 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         ) : (
           /* File Selection Area */
           <div className="text-center">
-            <div className="mx-auto w-12 h-12 text-gray-400 mb-4">
-              📁
-            </div>
-            <div className="mb-4">
-              <p className="text-gray-600 mb-2">
-                Drag and drop your file here, or
+            {!compact && (
+              <div className="mx-auto w-8 h-8 text-gray-400 mb-2">
+                📁
+              </div>
+            )}
+            <div className={compact ? 'flex items-center justify-center space-x-2' : 'mb-3'}>
+              <p className="text-sm text-gray-600">
+                {compact ? 'Drop file here or' : 'Drag and drop your file here, or'}
               </p>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="px-3 py-1.5 bg-primary-600 text-white text-xs font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
-                Browse Files
+                Browse
               </button>
             </div>
             <p className="text-xs text-gray-500">
-              Supported formats: {acceptedTypes.join(', ')} • Max size: {maxSize}MB
+              {acceptedTypes.join(', ')} • Max {maxSize}MB
             </p>
           </div>
         )}
@@ -201,8 +209,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       </div>
 
       {error && (
-        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-xs text-red-700">{error}</p>
         </div>
       )}
     </div>

@@ -48,6 +48,43 @@ export interface UploadListResponse {
   };
 }
 
+export interface PriceListResponse {
+  prices: Array<{
+    id: number;
+    item_code: string;
+    description: string;
+    price: number;
+    currency: string;
+    updated_at: string;
+  }>;
+  pagination: {
+    page: number;
+    pages: number;
+    per_page: number;
+    total: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
+}
+
+export interface DutyRateResponse {
+  rates: Array<{
+    id: number;
+    hs_code: string;
+    description: string;
+    rate: number;
+    updated_at: string;
+  }>;
+  pagination: {
+    page: number;
+    pages: number;
+    per_page: number;
+    total: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
+}
+
 class AuthService {
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     try {
@@ -154,6 +191,28 @@ class AuthService {
       return await apiService.get('/admin/stats');
     } catch (error: any) {
       throw new Error(error.response?.data?.error || 'Failed to fetch stats');
+    }
+  }
+
+  async getPriceList(page: number = 1, search?: string): Promise<PriceListResponse> {
+    try {
+      const params: any = { page };
+      if (search) params.search = search;
+      
+      return await apiService.get<PriceListResponse>('/admin/price-list', params);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch price list');
+    }
+  }
+
+  async getDutyRates(page: number = 1, search?: string): Promise<DutyRateResponse> {
+    try {
+      const params: any = { page };
+      if (search) params.search = search;
+      
+      return await apiService.get<DutyRateResponse>('/admin/duty-rates', params);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch duty rates');
     }
   }
 }

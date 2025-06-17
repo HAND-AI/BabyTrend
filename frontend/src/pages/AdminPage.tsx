@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import FileUploader from '../components/FileUploader';
 import RecordTable, { Pagination } from '../components/RecordTable';
-import authService, { UploadRecord } from '../services/auth';
+import authService, { UploadRecord, PriceListResponse, DutyRateResponse } from '../services/auth';
 
 const AdminPage: React.FC = () => {
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
+  const [priceList, setPriceList] = useState<PriceListResponse['prices']>([]);
+  const [dutyRates, setDutyRates] = useState<DutyRateResponse['rates']>([]);
   const [loading, setLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -12,6 +14,7 @@ const AdminPage: React.FC = () => {
   const [pagination, setPagination] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [activeTab, setActiveTab] = useState<'uploads' | 'price-list' | 'duty-rates'>('uploads');
+  const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -28,9 +31,15 @@ const AdminPage: React.FC = () => {
   });
 
   useEffect(() => {
-    loadUploads();
+    if (activeTab === 'uploads') {
+      loadUploads();
+    } else if (activeTab === 'price-list') {
+      loadPriceList();
+    } else if (activeTab === 'duty-rates') {
+      loadDutyRates();
+    }
     loadStats();
-  }, [currentPage, statusFilter]);
+  }, [currentPage, statusFilter, activeTab, searchTerm]);
 
   const loadUploads = async () => {
     setLoading(true);
@@ -39,6 +48,36 @@ const AdminPage: React.FC = () => {
     try {
       const response = await authService.getAllUploads(currentPage, statusFilter || undefined);
       setUploads(response.uploads);
+      setPagination(response.pagination);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPriceList = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await authService.getPriceList(currentPage, searchTerm);
+      setPriceList(response.prices);
+      setPagination(response.pagination);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadDutyRates = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await authService.getDutyRates(currentPage, searchTerm);
+      setDutyRates(response.rates);
       setPagination(response.pagination);
     } catch (err: any) {
       setError(err.message);
@@ -169,6 +208,170 @@ const AdminPage: React.FC = () => {
     </div>
   );
 
+  const renderPriceList = () => (
+    <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="p-4 border-b">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 max-w-lg">
+            <h2 className="text-lg font-semibold mb-2">Price List</h2>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search item code or description..."
+                className="w-full px-3 py-2 border rounded-md pr-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="ml-4">
+            <FileUploader
+              onFileSelect={handleFileSelect}
+              onUpload={handlePriceListUpload}
+              acceptedTypes={['.xlsx', '.xls']}
+              loading={uploadLoading}
+              progress={uploadProgress}
+              title="Update Price List"
+              description="Upload new price list file"
+              compact={true}
+            />
+          </div>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Code</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Currency</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated At</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {priceList.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
+                  No price list items found. Upload a file to get started.
+                </td>
+              </tr>
+            ) : (
+              priceList.map((item) => (
+                <tr key={item.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.item_code}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.description}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.price}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.currency}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(item.updated_at).toLocaleString()}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      {pagination && priceList.length > 0 && (
+        <div className="px-4 py-3 border-t">
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.pages}
+            onPageChange={handlePageChange}
+            hasNext={pagination.has_next}
+            hasPrev={pagination.has_prev}
+          />
+        </div>
+      )}
+    </div>
+  );
+
+  const renderDutyRates = () => (
+    <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="p-4 border-b">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 max-w-lg">
+            <h2 className="text-lg font-semibold mb-2">Duty Rates</h2>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search HS code or description..."
+                className="w-full px-3 py-2 border rounded-md pr-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="ml-4">
+            <FileUploader
+              onFileSelect={handleFileSelect}
+              onUpload={handleDutyRateUpload}
+              acceptedTypes={['.xlsx', '.xls']}
+              loading={uploadLoading}
+              progress={uploadProgress}
+              title="Update Duty Rates"
+              description="Upload new duty rates file"
+              compact={true}
+            />
+          </div>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">HS Code</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated At</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {dutyRates.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
+                  No duty rates found. Upload a file to get started.
+                </td>
+              </tr>
+            ) : (
+              dutyRates.map((rate) => (
+                <tr key={rate.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{rate.hs_code}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{rate.description}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{rate.rate}%</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(rate.updated_at).toLocaleString()}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      {pagination && dutyRates.length > 0 && (
+        <div className="px-4 py-3 border-t">
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.pages}
+            onPageChange={handlePageChange}
+            hasNext={pagination.has_next}
+            hasPrev={pagination.has_prev}
+          />
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -211,96 +414,75 @@ const AdminPage: React.FC = () => {
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
-          {[
-            { key: 'uploads', label: 'Upload Reviews' },
-            { key: 'price-list', label: 'Price List Management' },
-            { key: 'duty-rates', label: 'Duty Rate Management' }
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as any)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === tab.key
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          <button
+            onClick={() => setActiveTab('uploads')}
+            className={`${
+              activeTab === 'uploads'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Upload Review
+          </button>
+          <button
+            onClick={() => setActiveTab('price-list')}
+            className={`${
+              activeTab === 'price-list'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Price List
+          </button>
+          <button
+            onClick={() => setActiveTab('duty-rates')}
+            className={`${
+              activeTab === 'duty-rates'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Duty Rates
+          </button>
         </nav>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 'uploads' && (
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Upload Reviews</h2>
-              
-              <div className="flex items-center space-x-2">
-                <label className="text-sm text-gray-700">Filter by status:</label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => handleFilterChange(e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">All</option>
-                  <option value="pending">Pending</option>
-                  <option value="success">Success</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
+      {/* Content */}
+      <div className="mt-6">
+        {activeTab === 'uploads' && (
+          <div className="bg-white shadow rounded-lg">
+            <div className="p-4 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold">Upload Reviews</h2>
+                <div className="flex items-center space-x-4">
+                  <label className="text-sm text-gray-700">Filter by status:</label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => handleFilterChange(e.target.value)}
+                    className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All</option>
+                    <option value="pending">Pending</option>
+                    <option value="success">Success</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
-
-          <RecordTable
-            records={uploads}
-            loading={loading}
-            onViewDetails={handleViewDetails}
-            onReview={handleReview}
-            showUserColumn={true}
-            showActions={true}
-          />
-
-          {pagination && pagination.pages > 1 && (
-            <Pagination
-              currentPage={pagination.page}
-              totalPages={pagination.pages}
-              onPageChange={handlePageChange}
-              hasNext={pagination.has_next}
-              hasPrev={pagination.has_prev}
+            <RecordTable
+              records={uploads}
+              loading={loading}
+              onViewDetails={handleViewDetails}
+              onReview={handleReview}
+              showUserColumn={true}
+              showActions={true}
             />
-          )}
-        </div>
-      )}
-
-      {activeTab === 'price-list' && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <FileUploader
-            onFileSelect={handleFileSelect}
-            onUpload={handlePriceListUpload}
-            loading={uploadLoading}
-            progress={uploadProgress}
-            title="Upload Price List"
-            description="Upload an Excel file to update the price list"
-          />
-        </div>
-      )}
-
-      {activeTab === 'duty-rates' && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <FileUploader
-            onFileSelect={handleFileSelect}
-            onUpload={handleDutyRateUpload}
-            loading={uploadLoading}
-            progress={uploadProgress}
-            title="Upload Duty Rates"
-            description="Upload an Excel file to update duty rates"
-          />
-        </div>
-      )}
+          </div>
+        )}
+        {activeTab === 'price-list' && renderPriceList()}
+        {activeTab === 'duty-rates' && renderDutyRates()}
+      </div>
 
       {/* Review Modal */}
       {reviewModal.isOpen && (

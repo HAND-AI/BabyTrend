@@ -244,4 +244,88 @@ def get_admin_stats():
         return jsonify(stats), 200
         
     except Exception as e:
-        return jsonify({'error': f'Failed to retrieve stats: {str(e)}'}), 500 
+        return jsonify({'error': f'Failed to retrieve stats: {str(e)}'}), 500
+
+@admin_bp.route('/price-list', methods=['GET'])
+@token_required
+@admin_required
+def get_price_list():
+    """Get all price list entries"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('search', '')
+        
+        query = PriceList.query
+        
+        # Apply search filter if provided
+        if search:
+            query = query.filter(PriceList.item_code.ilike(f'%{search}%') | 
+                               PriceList.description.ilike(f'%{search}%'))
+        
+        # Order by item code
+        query = query.order_by(PriceList.item_code)
+        
+        # Paginate
+        pagination = query.paginate(
+            page=page, 
+            per_page=per_page, 
+            error_out=False
+        )
+        
+        return jsonify({
+            'prices': [price.to_dict() for price in pagination.items],
+            'pagination': {
+                'page': pagination.page,
+                'pages': pagination.pages,
+                'per_page': pagination.per_page,
+                'total': pagination.total,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to retrieve price list: {str(e)}'}), 500
+
+@admin_bp.route('/duty-rates', methods=['GET'])
+@token_required
+@admin_required
+def get_duty_rates():
+    """Get all duty rate entries"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('search', '')
+        
+        query = DutyRate.query
+        
+        # Apply search filter if provided
+        if search:
+            query = query.filter(DutyRate.hs_code.ilike(f'%{search}%') | 
+                               DutyRate.description.ilike(f'%{search}%'))
+        
+        # Order by HS code
+        query = query.order_by(DutyRate.hs_code)
+        
+        # Paginate
+        pagination = query.paginate(
+            page=page, 
+            per_page=per_page, 
+            error_out=False
+        )
+        
+        return jsonify({
+            'rates': [rate.to_dict() for rate in pagination.items],
+            'pagination': {
+                'page': pagination.page,
+                'pages': pagination.pages,
+                'per_page': pagination.per_page,
+                'total': pagination.total,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to retrieve duty rates: {str(e)}'}), 500 
