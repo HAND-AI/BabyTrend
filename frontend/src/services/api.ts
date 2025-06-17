@@ -37,7 +37,11 @@ class ApiService {
 
   // Generic request methods
   async get<T>(url: string, params?: any): Promise<T> {
-    const response: AxiosResponse<T> = await this.api.get(url, { params });
+    const { responseType, ...restParams } = params || {};
+    const response = await this.api.get(url, { 
+      params: restParams,
+      responseType: responseType || 'json',
+    });
     return response.data;
   }
 

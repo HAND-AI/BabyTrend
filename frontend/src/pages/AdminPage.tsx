@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import FileUploader from '../components/FileUploader';
 import RecordTable, { Pagination } from '../components/RecordTable';
+import UploadDetails from '../components/UploadDetails';
 import authService, { UploadRecord, PriceListResponse, DutyRateResponse } from '../services/auth';
 
 const AdminPage: React.FC = () => {
@@ -18,6 +19,7 @@ const AdminPage: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [selectedRecord, setSelectedRecord] = useState<UploadRecord | null>(null);
   const [reviewModal, setReviewModal] = useState<{
     isOpen: boolean;
     record: UploadRecord | null;
@@ -139,9 +141,24 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const handleDownload = async (record: UploadRecord) => {
+    try {
+      const response = await authService.downloadOriginalFile(record.id);
+      const url = window.URL.createObjectURL(response);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = record.filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const handleViewDetails = (record: UploadRecord) => {
-    // In a real app, this would open a detailed modal
-    alert(`View details for ${record.filename}\nUser: ${(record as any).username}\nStatus: ${record.status}\nItems: ${record.items?.length || 0}`);
+    setSelectedRecord(record);
   };
 
   const handleReview = (record: UploadRecord) => {
@@ -475,6 +492,7 @@ const AdminPage: React.FC = () => {
               loading={loading}
               onViewDetails={handleViewDetails}
               onReview={handleReview}
+              onDownload={handleDownload}
               showUserColumn={true}
               showActions={true}
             />
@@ -483,6 +501,15 @@ const AdminPage: React.FC = () => {
         {activeTab === 'price-list' && renderPriceList()}
         {activeTab === 'duty-rates' && renderDutyRates()}
       </div>
+
+      {/* Upload Details */}
+      {selectedRecord && (
+        <UploadDetails
+          record={selectedRecord}
+          onClose={() => setSelectedRecord(null)}
+          onDownload={handleDownload}
+        />
+      )}
 
       {/* Review Modal */}
       {reviewModal.isOpen && (

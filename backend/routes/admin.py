@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, send_file
 from database import db
 from models.upload import UploadRecord
 from models.price import PriceList
@@ -328,4 +328,23 @@ def get_duty_rates():
         }), 200
         
     except Exception as e:
-        return jsonify({'error': f'Failed to retrieve duty rates: {str(e)}'}), 500 
+        return jsonify({'error': f'Failed to retrieve duty rates: {str(e)}'}), 500
+
+@admin_bp.route('/upload/<int:upload_id>/file', methods=['GET'])
+@token_required
+@admin_required
+def admin_download_file(upload_id):
+    """Download the original uploaded file (admin access)"""
+    try:
+        upload = UploadRecord.query.get(upload_id)
+        
+        if not upload:
+            return jsonify({'error': 'Upload not found'}), 404
+            
+        if not upload.file_path or not os.path.exists(upload.file_path):
+            return jsonify({'error': 'Original file not found'}), 404
+            
+        return send_file(upload.file_path, as_attachment=True, download_name=upload.filename)
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to download file: {str(e)}'}), 500 

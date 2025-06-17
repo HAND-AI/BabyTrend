@@ -5,3 +5,4 @@ alwaysApply: true
 ---
 1. When design, always class first.
 2. When not specified, always try to use abstrct interface without going to details
+3. when trying to use command line to edit python file, always remember to activate the virtual enviroment first with 'myenv/scripts/activate'

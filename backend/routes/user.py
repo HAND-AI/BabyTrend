@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, send_file
 from database import db
 from models.upload import UploadRecord
 from utils.jwt import token_required
@@ -26,7 +26,7 @@ def upload_packing_list():
         if not validation_result['valid']:
             return jsonify({'error': validation_result['error']}), 400
         
-        # Save file temporarily
+        # Save file
         filename = validation_result['filename']
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         safe_filename = f"{timestamp}_{filename}"
@@ -40,33 +40,31 @@ def upload_packing_list():
             parse_result = FileParser.parse_packing_list(file_path)
             
             if not parse_result['success']:
-                return jsonify({
-                    'error': 'Failed to parse file',
-                    'details': parse_result.get('error', 'Unknown parsing error')
-                }), 400
-            
-            # Validate against price list
-            validation_result = PriceMatcher.validate_items(parse_result['items'])
+                status = 'failed'
+            else:
+                # Validate against price list
+                validation_result = PriceMatcher.validate_items(parse_result['items'])
+                status = validation_result['status']
             
             # Create upload record
             upload_record = UploadRecord(
                 user_id=request.current_user['user_id'],
                 filename=filename,
-                status=validation_result['status']
+                file_path=file_path,
+                status=status
             )
-            upload_record.set_items(validation_result['items'])
+            
+            if parse_result['success']:
+                upload_record.set_items(validation_result['items'])
             
             db.session.add(upload_record)
             db.session.commit()
             
-            # Clean up temporary file
-            os.remove(file_path)
-            
             return jsonify({
                 'message': 'File uploaded and processed successfully',
                 'upload_id': upload_record.id,
-                'status': validation_result['status'],
-                'summary': validation_result['summary']
+                'status': status,
+                'summary': validation_result.get('summary') if parse_result['success'] else {'error': parse_result.get('error', 'Unknown parsing error')}
             }), 200
             
         except Exception as e:
@@ -123,11 +121,9 @@ def get_user_uploads():
 
 @user_bp.route('/upload/<int:upload_id>', methods=['GET'])
 @token_required
-def get_upload_details():
+def get_upload_details(upload_id):
     """Get detailed information about a specific upload"""
     try:
-        upload_id = request.view_args['upload_id']
-        
         upload = UploadRecord.query.filter_by(
             id=upload_id,
             user_id=request.current_user['user_id']
@@ -146,4 +142,100 @@ def get_upload_details():
         return jsonify(upload_data), 200
         
     except Exception as e:
-        return jsonify({'error': f'Failed to retrieve upload details: {str(e)}'}), 500 
+        return jsonify({'error': f'Failed to retrieve upload details: {str(e)}'}), 500
+
+@user_bp.route('/upload/<int:upload_id>/file', methods=['GET'])
+@token_required
+def download_original_file(upload_id):
+    """Download the original uploaded file"""
+    try:
+        upload = UploadRecord.query.filter_by(
+            id=upload_id,
+            user_id=request.current_user['user_id']
+        ).first()
+        
+        if not upload:
+            return jsonify({'error': 'Upload not found'}), 404
+            
+        if not upload.file_path or not os.path.exists(upload.file_path):
+            return jsonify({'error': 'Original file not found'}), 404
+            
+        return send_file(upload.file_path, as_attachment=True, download_name=upload.filename)
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
+
+@user_bp.route('/upload/<int:upload_id>', methods=['DELETE'])
+@token_required
+def delete_upload(upload_id):
+    """Delete an upload record and its associated file"""
+    try:
+        upload = UploadRecord.query.filter_by(
+            id=upload_id,
+            user_id=request.current_user['user_id']
+        ).first()
+        
+        if not upload:
+            return jsonify({'error': 'Upload not found'}), 404
+            
+        if upload.status == 'success':
+            return jsonify({'error': 'Cannot delete successful uploads'}), 400
+            
+        # Delete associated file if it exists
+        upload.delete_file()
+        
+        # Delete record from database
+        db.session.delete(upload)
+        db.session.commit()
+        
+        return jsonify({'message': 'Upload deleted successfully'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to delete upload: {str(e)}'}), 500
+
+@user_bp.route('/upload/<int:upload_id>/items/<int:item_index>', methods=['PUT'])
+@token_required
+def update_upload_item(upload_id, item_index):
+    """Update a specific item in an upload record"""
+    try:
+        upload = UploadRecord.query.filter_by(
+            id=upload_id,
+            user_id=request.current_user['user_id']
+        ).first()
+        
+        if not upload:
+            return jsonify({'error': 'Upload not found'}), 404
+            
+        if upload.status == 'success':
+            return jsonify({'error': 'Cannot modify successful uploads'}), 400
+            
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        # Validate update data
+        validation_result = Validator.validate_item_update(data)
+        if not validation_result['valid']:
+            return jsonify({'error': validation_result['error']}), 400
+            
+        # Update the item
+        if not upload.update_item(item_index, data):
+            return jsonify({'error': 'Item index out of range'}), 400
+            
+        # Revalidate items
+        items = upload.get_items()
+        validation_result = PriceMatcher.validate_items(items)
+        upload.status = validation_result['status']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Item updated successfully',
+            'status': upload.status,
+            'validation_summary': validation_result['summary']
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to update item: {str(e)}'}), 500 

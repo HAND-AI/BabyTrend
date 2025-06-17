@@ -1,5 +1,5 @@
 import apiService from './api';
-import { setToken, setUser, removeToken, User } from '../utils/token';
+import { setToken, setUser, removeToken, getUser, User } from '../utils/token';
 
 export interface LoginRequest {
   username: string;
@@ -21,12 +21,19 @@ export interface UploadRecord {
   id: number;
   user_id: number;
   filename: string;
+  has_original_file: boolean;
   upload_time: string;
-  status: 'success' | 'pending' | 'approved' | 'rejected';
+  status: 'success' | 'pending' | 'approved' | 'rejected' | 'failed';
   items: any[];
   review_comment?: string;
   reviewed_by?: number;
   reviewed_at?: string;
+  validation_summary?: {
+    total_items: number;
+    matched_items: number;
+    unmatched_items: number;
+    error?: string;
+  };
 }
 
 export interface UploadResponse {
@@ -213,6 +220,35 @@ class AuthService {
       return await apiService.get<DutyRateResponse>('/admin/duty-rates', params);
     } catch (error: any) {
       throw new Error(error.response?.data?.error || 'Failed to fetch duty rates');
+    }
+  }
+
+  async downloadOriginalFile(uploadId: number): Promise<Blob> {
+    try {
+      const user = getUser();
+      const endpoint = user?.is_admin ? `/admin/upload/${uploadId}/file` : `/user/upload/${uploadId}/file`;
+      const response = await apiService.get<Blob>(endpoint, {
+        responseType: 'blob'
+      }) as Blob;
+      return response;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to download file');
+    }
+  }
+
+  async deleteUpload(uploadId: number): Promise<void> {
+    try {
+      await apiService.delete(`/user/upload/${uploadId}`);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to delete upload');
+    }
+  }
+
+  async updateUploadItem(uploadId: number, itemIndex: number, data: any): Promise<any> {
+    try {
+      return await apiService.put(`/user/upload/${uploadId}/items/${itemIndex}`, data);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to update item');
     }
   }
 }

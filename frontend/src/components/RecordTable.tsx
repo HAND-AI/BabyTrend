@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { UploadRecord } from '../services/auth';
+import UploadDetails from './UploadDetails';
 
 interface RecordTableProps {
   records: UploadRecord[];
   loading?: boolean;
   onViewDetails?: (record: UploadRecord) => void;
   onReview?: (record: UploadRecord) => void;
+  onDownload?: (record: UploadRecord) => void;
+  onDelete?: (record: UploadRecord) => void;
+  onEditItem?: (record: UploadRecord, itemIndex: number) => void;
   showUserColumn?: boolean;
   showActions?: boolean;
 }
@@ -15,19 +19,25 @@ const RecordTable: React.FC<RecordTableProps> = ({
   loading = false,
   onViewDetails,
   onReview,
+  onDownload,
+  onDelete,
+  onEditItem,
   showUserColumn = false,
   showActions = true
 }) => {
+  const [selectedRecord, setSelectedRecord] = useState<UploadRecord | null>(null);
+
   const getStatusBadge = (status: string) => {
     const statusClasses = {
-      success: 'status-success',
-      pending: 'status-pending',
-      approved: 'status-approved',
-      rejected: 'status-rejected'
+      success: 'bg-green-100 text-green-800',
+      pending: 'bg-yellow-100 text-yellow-800',
+      approved: 'bg-blue-100 text-blue-800',
+      rejected: 'bg-red-100 text-red-800',
+      failed: 'bg-gray-100 text-gray-800'
     };
 
     return (
-      <span className={statusClasses[status as keyof typeof statusClasses] || 'bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium'}>
+      <span className={`${statusClasses[status as keyof typeof statusClasses]} px-2 py-1 rounded-full text-xs font-medium`}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
@@ -61,88 +71,114 @@ const RecordTable: React.FC<RecordTableProps> = ({
   }
 
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              {showUserColumn && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
-                </th>
-              )}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Filename
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Upload Time
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Items
-              </th>
-              {showActions && (
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {records.map((record) => (
-              <tr key={record.id} className="hover:bg-gray-50">
+    <>
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
                 {showUserColumn && (
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {(record as any).username || 'Unknown'}
-                  </td>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    User
+                  </th>
                 )}
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">{record.filename}</div>
-                  {record.review_comment && (
-                    <div className="text-sm text-gray-500 mt-1">
-                      <span className="font-medium">Comment:</span> {record.review_comment}
-                    </div>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {formatDate(record.upload_time)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {getStatusBadge(record.status)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {record.items?.length || 0} items
-                </td>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Filename
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Upload Time
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Items
+                </th>
                 {showActions && (
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end space-x-2">
-                      {onViewDetails && (
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {records.map((record) => (
+                <React.Fragment key={record.id}>
+                  <tr className="hover:bg-gray-50">
+                    {showUserColumn && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {(record as any).username || 'Unknown'}
+                      </td>
+                    )}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{record.filename}</div>
+                      {record.review_comment && (
+                        <div className="text-sm text-gray-500 mt-1">
+                          <span className="font-medium">Comment:</span> {record.review_comment}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(record.upload_time)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getStatusBadge(record.status)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {record.items?.length || 0} items
+                    </td>
+                    {showActions && (
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                         <button
-                          onClick={() => onViewDetails(record)}
-                          className="text-primary-600 hover:text-primary-900 text-sm"
+                          onClick={() => setSelectedRecord(record)}
+                          className="text-primary-600 hover:text-primary-900"
                         >
                           View Details
                         </button>
-                      )}
-                      {onReview && record.status === 'pending' && (
-                        <button
-                          onClick={() => onReview(record)}
-                          className="text-green-600 hover:text-green-900 text-sm ml-2"
-                        >
-                          Review
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                        {record.has_original_file && (
+                          <button
+                            onClick={() => onDownload?.(record)}
+                            className="text-primary-600 hover:text-primary-900"
+                          >
+                            Download
+                          </button>
+                        )}
+                        {record.status !== 'success' && (
+                          <button
+                            onClick={() => onDelete?.(record)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        )}
+                        {onReview && record.status === 'pending' && (
+                          <button
+                            onClick={() => onReview(record)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            Review
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+
+      {selectedRecord && (
+        <UploadDetails
+          record={selectedRecord}
+          onClose={() => setSelectedRecord(null)}
+          onDownload={onDownload}
+          onDelete={onDelete}
+          onEditItem={onEditItem}
+        />
+      )}
+    </>
   );
 };
 

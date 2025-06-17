@@ -3,6 +3,71 @@ import FileUploader from '../components/FileUploader';
 import RecordTable, { Pagination } from '../components/RecordTable';
 import authService, { UploadRecord } from '../services/auth';
 
+interface EditModalProps {
+  isOpen: boolean;
+  record: UploadRecord | null;
+  itemIndex: number | null;
+  itemData: any;
+  onClose: () => void;
+  onSave: (data: any) => void;
+}
+
+const EditModal: React.FC<EditModalProps> = ({
+  isOpen,
+  record,
+  itemIndex,
+  itemData,
+  onClose,
+  onSave
+}) => {
+  const [formData, setFormData] = useState<any>(itemData);
+
+  if (!isOpen || !record || itemIndex === null) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+        <h3 className="text-lg font-medium mb-4">Edit Item #{itemIndex + 1}</h3>
+        <form onSubmit={handleSubmit}>
+          {Object.entries(formData).map(([key, value]) => (
+            <div key={key} className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {key}
+              </label>
+              <input
+                type="text"
+                value={value as string}
+                onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md"
+              />
+            </div>
+          ))}
+          <div className="flex justify-end space-x-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const DashboardPage: React.FC = () => {
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -13,6 +78,17 @@ const DashboardPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [editModal, setEditModal] = useState<{
+    isOpen: boolean;
+    record: UploadRecord | null;
+    itemIndex: number | null;
+    itemData: any;
+  }>({
+    isOpen: false,
+    record: null,
+    itemIndex: null,
+    itemData: null
+  });
 
   useEffect(() => {
     loadUploads();
@@ -61,9 +137,68 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  const handleViewDetails = (record: UploadRecord) => {
-    // In a real app, this would open a modal or navigate to details page
-    alert(`View details for ${record.filename}\nStatus: ${record.status}\nItems: ${record.items?.length || 0}`);
+  const handleDownload = async (record: UploadRecord) => {
+    try {
+      const blob = await authService.downloadOriginalFile(record.id);
+      if (!(blob instanceof Blob)) {
+        throw new Error('Invalid response format');
+      }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = record.filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleDelete = async (record: UploadRecord) => {
+    if (!window.confirm('Are you sure you want to delete this upload?')) {
+      return;
+    }
+
+    try {
+      await authService.deleteUpload(record.id);
+      setSuccessMessage('Upload deleted successfully');
+      loadUploads();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleEditItem = (record: UploadRecord, itemIndex: number) => {
+    setEditModal({
+      isOpen: true,
+      record,
+      itemIndex,
+      itemData: record.items[itemIndex]
+    });
+  };
+
+  const handleSaveItem = async (data: any) => {
+    if (!editModal.record || editModal.itemIndex === null) return;
+
+    try {
+      const response = await authService.updateUploadItem(
+        editModal.record.id,
+        editModal.itemIndex,
+        data
+      );
+      setSuccessMessage('Item updated successfully');
+      setEditModal({
+        isOpen: false,
+        record: null,
+        itemIndex: null,
+        itemData: null
+      });
+      loadUploads();
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   const handlePageChange = (page: number) => {
@@ -144,6 +279,7 @@ const DashboardPage: React.FC = () => {
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
+                <option value="failed">Failed</option>
               </select>
             </div>
           </div>
@@ -152,21 +288,39 @@ const DashboardPage: React.FC = () => {
         <RecordTable
           records={uploads}
           loading={loading}
-          onViewDetails={handleViewDetails}
+          onDownload={handleDownload}
+          onDelete={handleDelete}
+          onEditItem={handleEditItem}
           showUserColumn={false}
           showActions={true}
         />
 
         {pagination && pagination.pages > 1 && (
-          <Pagination
-            currentPage={pagination.page}
-            totalPages={pagination.pages}
-            onPageChange={handlePageChange}
-            hasNext={pagination.has_next}
-            hasPrev={pagination.has_prev}
-          />
+          <div className="px-6 py-4 border-t border-gray-200">
+            <Pagination
+              currentPage={pagination.page}
+              totalPages={pagination.pages}
+              onPageChange={handlePageChange}
+              hasNext={pagination.has_next}
+              hasPrev={pagination.has_prev}
+            />
+          </div>
         )}
       </div>
+
+      <EditModal
+        isOpen={editModal.isOpen}
+        record={editModal.record}
+        itemIndex={editModal.itemIndex}
+        itemData={editModal.itemData}
+        onClose={() => setEditModal({
+          isOpen: false,
+          record: null,
+          itemIndex: null,
+          itemData: null
+        })}
+        onSave={handleSaveItem}
+      />
     </div>
   );
 };
